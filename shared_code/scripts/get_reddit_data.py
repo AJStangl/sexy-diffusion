@@ -2,10 +2,11 @@ import logging
 
 from shared_code.data_collection.reddit_data_collector import RedditDataCollector
 
-if __name__ == '__main__':
+
+def main(subreddits: str):
 	logging.basicConfig(format=f'|:: Thread:%(threadName)s %(levelname)s ::| %(message)s', level=logging.INFO)
 	builder = RedditDataCollector()
-	builder.download_subreddit_images("sfwpetite+SFWNextDoorGirls+SFWRedheads")
+	builder.download_subreddit_images(subreddits)
 
 	captioned_items_to_stage = builder.update_with_ai_captions()
 

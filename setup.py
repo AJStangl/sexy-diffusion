@@ -16,7 +16,12 @@ setup(
 	keywords="GPT2",
 	include_package_data=True,
 	url="https://example.com",
-	packages=['shared_code'],
+	packages=['shared_code',
+			  'shared_code/scripts',
+			  'shared_code/storage',
+			  'shared_code/data_collection',
+			  'shared_code/image_captioning'
+			  ],
 
 	long_description=read('README.md'),
 	classifiers=[
@@ -25,7 +30,7 @@ setup(
 	],
 	entry_points={
 		'console_scripts': [
-			'simple-bot-gpt2 = shared_code.cli_wrapper:cli',
+			'sd-tools = shared_code.cli:cli',
 		],
 	},
 )
