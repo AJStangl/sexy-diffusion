@@ -12,3 +12,4 @@
 /simple_bot_gpt2.egg-info/*
 /config.ini
 /venv/
+/foo.py

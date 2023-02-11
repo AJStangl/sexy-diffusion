@@ -8,7 +8,6 @@ from azure.data.tables import TableServiceClient
 logger = logging.getLogger(__name__)
 logging.getLogger("azure.storage").setLevel(logging.WARNING)
 
-
 class TableAdapter:
 	def __init__(self):
 		self.connection_string = os.environ["AZURE_STORAGE_CONNECTION_STRING"]

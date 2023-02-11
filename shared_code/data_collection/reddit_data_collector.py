@@ -16,6 +16,7 @@ from shared_code.storage.table import TableAdapter
 from shared_code.storage.table_entry import TableEntry
 
 logger = logging.getLogger(__name__)
+logging.getLogger("azure.storage").setLevel(logging.WARNING)
 
 
 class RedditDataCollector:
@@ -134,7 +135,7 @@ class RedditDataCollector:
 					else:
 						self.hashes.append(md5)
 
-					out_image = f"{self.out_path}{image_name}"
+					out_image = f"{self.out_path}/{image_name}"
 					try:
 						with open(out_image, "wb") as f:
 							f.write(content)
@@ -157,7 +158,6 @@ class RedditDataCollector:
 							self.table_client.upsert_entity(entity=to_add)
 							self.image_count += 1
 							logging.info("File downloaded\t" + image_name + "\t" + "count\t" + str(self.image_count))
-							time.sleep(.5)
 							return
 					except Exception as e:
 						logging.error(e)
@@ -189,13 +189,25 @@ class RedditDataCollector:
 
 		return all_current_images
 
-	def move_to_staging(self, dataframe: pd.DataFrame) -> None:
-
+	def move_to_staging(self) -> list[dict]:
 		training_image_path = os.environ["LOCAL_TRAINING_IMAGES"]
 		try:
 			os.mkdir(training_image_path)
 		except FileExistsError:
 			pass
+
+		all_current_images: list[dict] = list(self.table_client.list_entities())
+		print("All Current Images: " + str(len(all_current_images)))
+
+		present_images = [item for item in all_current_images if os.path.exists(item.get("image"))]
+
+		print("Present Images: " + str(len(present_images)))
+
+		filtered_on_caption = [item for item in present_images if item.get("caption") is not None]
+
+		print("Filtered on Caption: " + str(len(filtered_on_caption)))
+
+		dataframe = self._write_json_meta_data(filtered_on_caption)
 
 		for index, row in dataframe.iterrows():
 			local_path = os.path.join(os.environ["OUT_PATH"], row['file_name'])
@@ -205,9 +217,9 @@ class RedditDataCollector:
 
 		logging.info(f"Done moving files to training folder: Total Number of Images: {str(len(dataframe))}")
 
-		return None
+		return filtered_on_caption
 
-	def write_json_meta_data(self, all_current_images: list[dict]):
+	def _write_json_meta_data(self, all_current_images: list[dict]):
 		"""
 			# {"file_name": "0001.png", "text": "This is a golden retriever playing with a ball"}
 			# {"file_name": "0002.png", "text": "A german shepherd"}
@@ -245,22 +257,29 @@ class RedditDataCollector:
 									  columns=['image', 'text', 'id', 'author', 'url', 'flair', 'permalink', 'hash', 'caption'])
 
 		# extract the file name from the image path
-		file_name = data_frame['image'].map(lambda x: x.split("\\")[-1])
+		file_name = data_frame['image'].map(lambda x: os.path.split(x)[-1])
 
 		# extract the text from the data frame
 		text = data_frame['text']
+		caption = data_frame['caption']
 
 		# create a new data frame with the file name and text
 		filtered_frame = pandas.DataFrame({'file_name': file_name.values, 'text': text.values})
 
+		alternate_frame = pandas.DataFrame({'file_name': file_name.values, 'text': caption.values})
+
+		all_frames = pandas.concat([filtered_frame, alternate_frame])
+
 		# write the data frame to a json lines file
-		json_lines = filtered_frame.to_json(orient='records', lines=True)
+		filtered_frame_json_lines = filtered_frame.to_json(orient='records', lines=True)
+		alternate_frame_json_lines = alternate_frame.to_json(orient='records', lines=True)
 
 		# write the json lines to a file
 		with open('metadata.jsonl', 'w', encoding='utf-8') as f:
-			f.write(json_lines)
+			f.write(filtered_frame_json_lines)
+			f.write(alternate_frame_json_lines)
 
-		return
+		return all_frames
 
 	def move_training_to_cloud(self):
 		logging.info("===Uploading training files to cloud===")
