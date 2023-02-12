@@ -169,7 +169,7 @@ class RedditDataCollector:
 			logging.error(e)
 			return
 
-	def update_with_ai_captions(self) -> list[dict]:
+	def update_with_ai_captions(self) -> None:
 		foo = ImageCaption()
 		all_current_images: list[dict] = list(self.table_client.list_entities())
 		for image in all_current_images:
@@ -186,8 +186,7 @@ class RedditDataCollector:
 				except Exception as e:
 					logging.error(e)
 					continue
-
-		return all_current_images
+		return None
 
 	def move_to_staging(self) -> list[dict]:
 		training_image_path = os.environ["LOCAL_TRAINING_IMAGES"]

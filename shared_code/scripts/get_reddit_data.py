@@ -8,9 +8,8 @@ def main(subreddits: str, transfer_to_cloud: bool):
 	builder = RedditDataCollector()
 	builder.download_subreddit_images(subreddits)
 
-	captioned_items_to_stage = builder.update_with_ai_captions()
+	builder.update_with_ai_captions()
 
 	if transfer_to_cloud:
-		builder.move_to_staging(captioned_items_to_stage)
-		builder.write_json_meta_data(captioned_items_to_stage)
-		builder.move_training_to_cloud()
+		builder.move_to_staging()
+		# builder.move_training_to_cloud()
