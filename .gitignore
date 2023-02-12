@@ -13,3 +13,8 @@
 /config.ini
 /venv/
 /foo.py
+/sexy_diffusion.egg-info/dependency_links.txt
+/sexy_diffusion.egg-info/PKG-INFO
+/sexy_diffusion.egg-info/entry_points.txt
+/sexy_diffusion.egg-info/SOURCES.txt
+/sexy_diffusion.egg-info/top_level.txt
