@@ -170,7 +170,7 @@ class RedditDataCollector:
 			return
 
 	def update_with_ai_captions(self) -> None:
-		foo = ImageCaption()
+		caption_generator : ImageCaption= ImageCaption()
 		all_current_images: list[dict] = list(self.table_client.list_entities())
 		for image in all_current_images:
 			if not os.path.exists(image.get('image')):
@@ -180,8 +180,8 @@ class RedditDataCollector:
 					logging.info(f"Image already has a caption: {image.get('image')}")
 					continue
 				try:
-					caption = foo.caption_image(image.get('image'))
-					image['caption'] = caption
+					image['caption'] = caption_generator.caption_image(image.get('image'))
+					image['updated_caption'] = caption_generator.caption_image_vit(image.get('image'))
 					self.table_client.upsert_entity(entity=image)
 				except Exception as e:
 					logging.error(e)

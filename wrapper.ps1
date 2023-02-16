@@ -1,3 +1,6 @@
+echo ":: Starting wrapper script"
+
 ./venv/Scripts/activate
 
-python shared_code/cli.py run-collector -s sfwpetite+SFWNextDoorGirls+SFWRedheads
+echo ":: Starting collector for EarthPorn"
+python shared_code/cli.py run-collector -s EarthPorn
