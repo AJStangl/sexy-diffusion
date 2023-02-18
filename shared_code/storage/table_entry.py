@@ -16,6 +16,8 @@ class TableEntry:
 	permalink: str
 	hash: str
 	caption: str
+	updated_caption: str
+	exits: bool
 
 	@staticmethod
 	def from_dict(obj: Any) -> 'TableEntry':
@@ -31,5 +33,7 @@ class TableEntry:
 		_permalink = str(obj.get("permalink"))
 		_hash = str(obj.get("hash"))
 		_caption = str(obj.get("caption"))
+		_exits = bool(obj.get("exits"))
+		_updated_caption = str(obj.get("updated_caption"))
 		return TableEntry(_PartitionKey, _RowKey, _image, _text, _id, _author, _url, _subreddit, _flair, _permalink,
-						  _hash, _caption)
+						  _hash, _caption, _updated_caption, _exits)

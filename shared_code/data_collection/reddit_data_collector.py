@@ -3,10 +3,8 @@ import hashlib
 import logging
 import os
 import shutil
-import time
 
 import pandas
-import pandas as pd
 import requests
 from azure.data.tables import TableClient
 
@@ -49,18 +47,28 @@ class RedditDataCollector:
 			period_start_date = period_end_date
 
 	def make_entry(self, image, text, submission_id, author, url, flair, permalink, sub, image_hash) -> dict:
-		entry = TableEntry(PartitionKey=os.environ["IMAGE_TRAINING_TABLE"], RowKey=submission_id, image=image,
-						   text=text, id=submission_id,
-						   author=author, url=url, flair=flair, permalink=permalink, subreddit=sub, hash=image_hash,
-						   caption=None)
+		entry = TableEntry(PartitionKey=os.environ["IMAGE_TRAINING_TABLE"],
+						   RowKey=submission_id,
+						   image=image,
+						   text=text,
+						   id=submission_id,
+						   author=author,
+						   url=url,
+						   flair=flair,
+						   permalink=permalink,
+						   subreddit=sub,
+						   hash=image_hash,
+						   caption=None,
+						   updated_caption=None,
+						   exits=True)
 		return entry
 
-	def download_subreddit_images(self, subreddit, start_date="2023-01-01",
-								  end_date=datetime.datetime.today().strftime('%Y-%m-%d')):
+	def download_subreddit_images(self, subreddit, start_date="2023-01-01", end_date=datetime.datetime.today().strftime('%Y-%m-%d')):
 
 		all_current_images: list[dict] = list(self.table_client.list_entities())
 
 		self.hashes = [x['hash'] for x in all_current_images]
+
 		self.ids = [x['id'] for x in all_current_images]
 
 		start_date = datetime.datetime.fromisoformat(start_date)
@@ -68,7 +76,9 @@ class RedditDataCollector:
 		end_date = datetime.datetime.fromisoformat(end_date)
 
 		subs = subreddit.split("+")
+
 		final_path = os.path.join(self.out_path, subreddit)
+
 		for subreddit in subs:
 			logging.info(f"== Starting {subreddit}==")
 			for start, end in self.loop_between_dates(start_date, end_date):
@@ -99,7 +109,8 @@ class RedditDataCollector:
 
 		logging.info("All images are downloaded: Total count\t{image_count}")
 
-	def handle_submission(self, submission, data, final_path):
+	def handle_submission(self, submission, data,
+						  final_path):  # note this is buggy if data is not present as a input to the method
 		try:
 			if 'selftext' not in submission:
 				# ignore submissions with no selftext key (buggy)
@@ -141,6 +152,7 @@ class RedditDataCollector:
 						with open(out_image, "wb") as f:
 							f.write(content)
 							caption = self.image_caption.caption_image(out_image)
+							updated_caption = self.image_caption.caption_image_vit(out_image)
 							entity = TableEntry(
 								PartitionKey='training',
 								RowKey=submission_id,
@@ -153,7 +165,10 @@ class RedditDataCollector:
 								permalink=permalink,
 								subreddit=subreddit,
 								hash=md5,
-								caption=caption)
+								caption=caption,
+								updated_caption=updated_caption,
+								exits=os.path.exists(out_image))
+
 							to_add = entity.__dict__
 							logging.info(to_add)
 							self.table_client.upsert_entity(entity=to_add)
@@ -171,11 +186,11 @@ class RedditDataCollector:
 			return
 
 	def update_with_ai_captions(self) -> None:
-		caption_generator : ImageCaption= ImageCaption()
+		caption_generator: ImageCaption = ImageCaption()
 		all_current_images: list[dict] = list(self.table_client.list_entities())
 		for image in all_current_images:
 			if not os.path.exists(image.get('image')):
-				logging.info(f"File does not exist, removing from list: {image.get('image')}")
+				logging.info(f"File does not exist, skipping: {image.get('image')}")
 			else:
 				if image.get('caption') is not None:
 					logging.info(f"Image already has a caption: {image.get('image')}")
@@ -189,7 +204,7 @@ class RedditDataCollector:
 					continue
 		return None
 
-	def move_to_staging(self) -> list[dict]:
+	def move_to_staging(self):
 		training_image_path = os.environ["LOCAL_TRAINING_IMAGES"]
 		try:
 			os.mkdir(training_image_path)
@@ -200,14 +215,15 @@ class RedditDataCollector:
 		print("All Current Images: " + str(len(all_current_images)))
 
 		present_images = [item for item in all_current_images if os.path.exists(item.get("image"))]
-
 		print("Present Images: " + str(len(present_images)))
 
 		filtered_on_caption = [item for item in present_images if item.get("caption") is not None]
-
 		print("Filtered on Caption: " + str(len(filtered_on_caption)))
 
-		dataframe = self._write_json_meta_data(filtered_on_caption)
+		filtered_on_updated_caption = [item for item in filtered_on_caption if item.get("updated_caption") is not None]
+		print("Filtered on VIT Caption: " + str(len(filtered_on_updated_caption)))
+
+		dataframe = self._write_json_meta_data()
 
 		for index, row in dataframe.iterrows():
 			local_path = os.path.join(os.environ["OUT_PATH"], row['file_name'])
@@ -219,16 +235,17 @@ class RedditDataCollector:
 
 		return filtered_on_caption
 
-	def _write_json_meta_data(self, all_current_images: list[dict]):
+	def _write_json_meta_data(self):
 		"""
 			# {"file_name": "0001.png", "text": "This is a golden retriever playing with a ball"}
 			# {"file_name": "0002.png", "text": "A german shepherd"}
 			# {"file_name": "0003.png", "text": "One chihuahua"}
 		"""
 		# Filter and unsure the other process found the captions
-		all_current_images: list[dict] = [item for item in all_current_images if item.get('caption') is not None]
+		all_current_images: list[dict] = list(self.table_client.list_entities("training"))
 
 		logging.info(f"Total Raw Images: {len(all_current_images)}")
+
 		present_images = []
 		for image in all_current_images:
 			"""
@@ -247,20 +264,23 @@ class RedditDataCollector:
 			"""
 
 			if not os.path.exists(image.get('image')):
-				logging.info(f"File does not exist, removing from list: {image.get('image')}")
+				logging.info(f"File does not exist, skipping: {image.get('image')}")
 			else:
 				present_images.append(image)
 
 		logging.info(f"Filtered Images: {len(present_images)}")
 
 		data_frame = pandas.DataFrame(present_images,
-									  columns=['image', 'text', 'id', 'author', 'url', 'flair', 'permalink', 'hash', 'caption'])
+									  columns=['image', 'text', 'id', 'author', 'url', 'flair', 'permalink', 'hash',
+											   'caption', 'updated_caption', 'exits'
+											   ])
 
 		# extract the file name from the image path
 		file_name = data_frame['image'].map(lambda x: os.path.split(x)[-1])
 
 		# extract the text from the data frame
 		text = data_frame['text']
+
 		caption = data_frame['caption']
 
 		# create a new data frame with the file name and text
@@ -277,6 +297,7 @@ class RedditDataCollector:
 		# write the json lines to a file
 		with open('metadata.jsonl', 'w', encoding='utf-8') as f:
 			f.write(filtered_frame_json_lines)
+
 			f.write(alternate_frame_json_lines)
 
 		return all_frames
