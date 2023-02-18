@@ -68,6 +68,7 @@ class RedditDataCollector:
 		end_date = datetime.datetime.fromisoformat(end_date)
 
 		subs = subreddit.split("+")
+		final_path = os.path.join(self.out_path, subreddit)
 		for subreddit in subs:
 			logging.info(f"== Starting {subreddit}==")
 			for start, end in self.loop_between_dates(start_date, end_date):
@@ -87,18 +88,18 @@ class RedditDataCollector:
 				if submissions is None:
 					continue
 				try:
-					os.mkdir(self.out_path)
+					os.mkdir(final_path)
 				except FileExistsError:
 					pass
 
 				for submission in submissions:
-					self.handle_submission(submission, data)
+					self.handle_submission(submission, data, final_path)
 
 			logging.info(f"All images from {subreddit} subreddit are downloaded")
 
 		logging.info("All images are downloaded: Total count\t{image_count}")
 
-	def handle_submission(self, submission, data):
+	def handle_submission(self, submission, data, final_path):
 		try:
 			if 'selftext' not in submission:
 				# ignore submissions with no selftext key (buggy)
@@ -135,7 +136,7 @@ class RedditDataCollector:
 					else:
 						self.hashes.append(md5)
 
-					out_image = f"{self.out_path}/{image_name}"
+					out_image = f"{final_path}/{image_name}"
 					try:
 						with open(out_image, "wb") as f:
 							f.write(content)
